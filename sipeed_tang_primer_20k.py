@@ -30,7 +30,7 @@ from litedram.phy import GW2DDRPHY
 from litex.soc.cores.gpio import *
 from litex.soc.interconnect import wishbone
 from litex.build.generic_platform import Pins, IOStandard
-
+from litex.build.generic_platform import Subsignal
 
 
 class SDWishboneController(Module):
@@ -45,9 +45,18 @@ class SDWishboneController(Module):
         platform.add_source("hdl/WishboneController.sv", language="systemverilog")
         platform.add_source("hdl/SDDataController.sv", language="systemverilog")
         platform.add_source("hdl/SDCommandController.sv", language="systemverilog")
-        sdio = platform.request("sdcard", 0)
+        # sdio = platform.request("sdcard", 0)
+      
         
-        platform.add_extension([("sd_debug", 0, Pins("P11 T11 P6 T6"), IOStandard("LVCMOS33"))])
+        platform.add_extension([("sd_debug", 0, Pins("P6 T6 T7 R8"), IOStandard("LVCMOS33"))])
+        platform.add_extension([("wlan_wake_host", 0, Pins("P11"), IOStandard("LVCMOS33"))])
+        platform.add_extension([("wlan_enable", 0, Pins("T11"), IOStandard("LVCMOS33"))])
+        platform.add_extension([("sdio", 0,
+        	Subsignal("clk", Pins("M14")),
+        	Subsignal("cmd", Pins("M15")),
+        	Subsignal("data", Pins("J16 J14 R11 T12")),  # 4 линии
+        	IOStandard("LVCMOS33"))])
+        sdio = platform.request("sdio", 0)
         
         platform.add_period_constraint(sdio.clk, 27.0)
         # Инстанциируем Verilog модуль
@@ -66,7 +75,9 @@ class SDWishboneController(Module):
             o_wb_dat_o   	= self.bus.dat_r,
             o_wb_ack_o   	= self.bus.ack,
             o_wb_err_o   	= self.bus.err,
-            o_sd_debug 		= platform.request("sd_debug", 0)
+            o_sd_debug 		= platform.request("sd_debug", 0),
+            o_wlan_wake_host = platform.request("wlan_wake_host", 0),
+            o_wlan_enable   = platform.request("wlan_enable", 0),
         )
 
 
