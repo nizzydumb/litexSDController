@@ -4,6 +4,8 @@ module WishboneController(
     inout sd_command,
     inout[3:0] sd_data,
     output[3:0] sd_debug,
+    output wlan_wake_host,
+    output wlan_enable,
 
     input wb_clk,
     input wb_rst,
@@ -25,10 +27,13 @@ module WishboneController(
 	assign sd_debug[2] = sd_data[0];
 	assign sd_debug[3] = wb_rst;
     */
-    assign sd_debug[0] = sd_data[0];
-	assign sd_debug[1] = sd_data[1];
-	assign sd_debug[2] = sd_data[2];
-	assign sd_debug[3] = sd_data[3];
+    assign sd_debug[0] = sd_clock;
+	assign sd_debug[1] = sd_command;
+	assign sd_debug[2] = sd_data[0];
+	assign sd_debug[3] = sd_data[1];
+	
+	assign wlan_wake_host = 1'b1; // todo: remove unrelated ports
+	assign wlan_enable = 1'b1;
     
     
     reg[31:0] MAIN_CLOCK_FREQUENCY = 32'd48_000_000;
@@ -51,6 +56,8 @@ module WishboneController(
     
     localparam CMD_STATUS_POINTER = 32'h0000c000;
     localparam DATA_STATUS_POINTER = 32'h0000d000;
+    
+    localparam DATA_LENGTH_POINTER = 32'h0000e000;
 
     wire read_clock = wb_clk;
     wire[8:0] read_address = wb_adr_i[8:0];
@@ -111,6 +118,10 @@ module WishboneController(
                            	write_data <= wb_dat_w_i;
                          	wb_ack_o_buf <= 1'b1;
                      	end
+                     	DATA_LENGTH_POINTER : begin
+							dataLength <= wb_dat_w_i[10:0];
+                     		wb_ack_o_buf <= 1'b1;
+                     	end 
                        	 
                      	default : begin
                        		wb_err_o_buf <= 1'b1;
@@ -213,6 +224,10 @@ module WishboneController(
                        		wb_dat_o <= dataStatusVector;
                          	wb_ack_o_buf <= 1'b1;
                     	end
+                    	DATA_LENGTH_POINTER : begin
+                    		wb_dat_o <= dataLength[10:0];
+                    		wb_ack_o_buf <= 1'b1;
+                    	end 
                     	default : begin
                        		wb_err_o_buf <= 1'b1;
                     	end
@@ -300,6 +315,7 @@ module WishboneController(
     wire dataFinished;
     wire dataError;
     wire dataTimeout;
+    reg[10:0] dataLength = 11'd512;
 
     SDDataController dataController(
         .reset(wb_rst),
@@ -317,7 +333,7 @@ module WishboneController(
         
         .start(dataStart),
         .writeEnable(dataWriteEnable), 
-        .dataLength('d512),
+        .dataLength(dataLength),
 
         .finished(dataFinished),
         .error(dataError),    
