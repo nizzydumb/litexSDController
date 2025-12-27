@@ -213,7 +213,7 @@ module SDDataController(
                     state <= WAIT4FREE;
                 end
                 WAIT4FREE : begin
-                    if(sdData[0]) begin
+                    if(sdData[0]) begin // todo: add timeout control
                         finished <= 1'b1;
                         error <= responseToken != 3'b010;                        
                         state <= IDLE;
