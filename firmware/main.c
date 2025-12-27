@@ -29,6 +29,7 @@
 #define SDIO_DATA_BUSY	 				(*(volatile uint32_t*)(SDIO_BASE + 0xb000))
 #define SDIO_CMD_STATUS	 				(*(volatile uint32_t*)(SDIO_BASE + 0xc000))
 #define SDIO_DATA_STATUS	 			(*(volatile uint32_t*)(SDIO_BASE + 0xd000))
+#define SDIO_DATA_LENGTH				(*(volatile uint32_t*)(SDIO_BASE + 0xe000))
 
 uint32_t sdio_read_main_clock_frequency()
 {
@@ -145,11 +146,24 @@ uint32_t sdio_read_data()
 	return status;
 }
 
+uint32_t sdio_read_data_length()
+{
+	uint32_t length = SDIO_DATA_LENGTH;
+	
+	printf("data length set: %08X\n", length);
+	return length;
+}
+
+void sdio_set_data_length(uint32_t data_length)
+{
+	SDIO_DATA_LENGTH = data_length;
+}
+
 int main(void) {
     irq_setmask(0);
     irq_setie(1);
     uart_init(); 
-	busy_wait(1000);    
+	busy_wait(5000);    
     printf("\n=== Litex SD Controller ===\n");
 
 	uint32_t main_clock_frequency = sdio_read_main_clock_frequency();
@@ -164,31 +178,12 @@ int main(void) {
 	busy_wait(100);
 	
 	do {
-		response = sdio_send_cmd(8, 0x000001aa);
+		response = sdio_send_cmd(5, 0x00000000);
+		if(!(response & 0x01)) {
+			response_argument = sdio_read_cmd_response_argument();	
+		}
 		busy_wait(100);
-	} while(response & 0x01);
-		
-	uint8_t inited = 0;
-	do {
-		do {
-			response = sdio_send_cmd(55, 0);
-			busy_wait(100);
-		} while(response & 0x01);
-	
-		response = sdio_send_cmd(41, 0x40100000);
-		busy_wait(100);
-		response_argument = sdio_read_cmd_response_argument();
-    	printf("response argument = 0x%08X\n", response_argument);
-		if(!(response & 0x01) && (response_argument >> 31 & 0x00000001))
-			inited = 1; 
-			
-	} while(!inited);
-	
-	
-	do {
-		response = sdio_send_cmd(2, 0);
-		busy_wait(100);
-	} while(response & 0x01) ;
+	} while((response & 0x01) || ((response_argument >> 31) != 0x00000001));	
 	
 	do {
 		response = sdio_send_cmd(3, 0);
@@ -202,84 +197,35 @@ int main(void) {
 		busy_wait(100);
 	} while(response & 0x01);
 	
-	inited = 0;
 	do {
-		do {
-			response = sdio_send_cmd(55, response_argument & 0xffff0000);
-			busy_wait(100);
-		} while(response & 0x01);
-	
-		response = sdio_send_cmd(6, 0x00000002);
-		busy_wait(100);
-		response_argument = sdio_read_cmd_response_argument();
-		if(!(response & 0x01))
-			inited = 1; 
-			
-	} while(!inited);
-	
-	do {
-		response = sdio_send_cmd(16, 0x00000200);
+		response = sdio_send_cmd(52, 0x88000e02);
 		busy_wait(100);
 	} while(response & 0x01);
-
 	
 	do {
-		response = sdio_send_cmd_and_read_data(17, 0x00000000);
+		response = sdio_send_cmd(52, 0x88000402);
 		busy_wait(100);
 	} while(response & 0x01);
-
-	uint32_t read_address = 0;
-	uint32_t read_data = 0;
 	
-	busy_wait(1000);
-	
-	for(int i = 0; i < 32; i++) 
-	{
-		for(int j = 0; j < 4; j++)
-		{
-			read_data = sdio_read_from_data_buffer(read_address);
-			printf("0x%08X ", read_data);
-			read_address++;		
+	do {
+		response = sdio_send_cmd(52, 0x00000600);
+		busy_wait(100);
+		if(!(response & 0x01)) {
+			response_argument = sdio_read_cmd_response_argument();	
 		}
-		printf("\n");	
-	}
+	} while((response & 0x01) || ((response_argument & 0x02) == 0));
 	
-	uint32_t write_address = 0;
-	
-	for(int i = 0; i < 128; i++) 
-	{
-		sdio_write_to_data_buffer(0x77777777, write_address);	
-		write_address++;
-	}
+	sdio_set_data_length(32);
+	sdio_read_data_length();	
 	
 	do {
-		response = sdio_send_cmd(24, 0x00000000);
+		response = sdio_send_cmd(53, 0x90200020);
 		busy_wait(100);
 	} while(response & 0x01);
 	
 	response = sdio_send_data();
 	
 	if(response & 0x03) printf("data write error");
-	
-	do {
-		response = sdio_send_cmd_and_read_data(17, 0x00000000);
-		busy_wait(100);
-	} while(response & 0x01);
-	
-	read_address = 0;
-	
-	for(int i = 0; i < 32; i++) 
-	{
-		for(int j = 0; j < 4; j++)
-		{
-			read_data = sdio_read_from_data_buffer(read_address);
-			printf("0x%08X ", read_data);
-			read_address++;		
-		}
-		printf("\n");	
-	}
-	
-	printf("end\n");
 	
     return 0;
 
